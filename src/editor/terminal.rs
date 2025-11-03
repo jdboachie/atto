@@ -21,7 +21,7 @@ pub struct Size {
     pub width: usize,
 }
 
-/// Repreents the Terminal
+/// Represents the Terminal
 /// Terminal spans max rows/columns of usize::MAX or u16::MAX, whichever is smaller
 /// (crossterm uses u16 so we're kinda limited here)
 /// If you try to set the caret out of these bounds, it will be truncated
