@@ -9,7 +9,7 @@ const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Copy, Default)]
-pub struct CursorLocation {
+pub struct CaretLocation {
     x: usize,
     y: usize,
 }
@@ -17,7 +17,7 @@ pub struct CursorLocation {
 #[derive(Default)]
 pub struct Editor {
     should_quit: bool,
-    cursor_location: CursorLocation,
+    cursor_location: CaretLocation,
 }
 
 impl Editor {
@@ -41,7 +41,7 @@ impl Editor {
     }
 
     fn move_point(&mut self, key_code: KeyCode) -> Result<(), Error> {
-        let CursorLocation { mut x, mut y } = self.cursor_location;
+        let CaretLocation { mut x, mut y } = self.cursor_location;
         let Size { height, width } = Terminal::size()?;
 
         match key_code {
@@ -67,7 +67,7 @@ impl Editor {
             }
             _ => (),
         }
-        self.cursor_location = CursorLocation { x, y };
+        self.cursor_location = CaretLocation { x, y };
         Ok(())
     }
 
