@@ -1,46 +1,92 @@
-use crate::editor::terminal::Terminal;
-use std::io::Error;
+mod buffer;
+
+use buffer::Buffer;
+use super::terminal::{Size, Terminal};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub struct View {}
+pub struct View {
+    buffer: Buffer,
+    size: Size,
+
+    should_rerender: bool,
+}
+
+impl Default for View {
+    fn default() -> Self {
+        Self {
+            should_rerender: true,
+            buffer: Buffer::default(),
+            size: Terminal::size().unwrap_or_default(),
+        }
+    }
+}
 
 impl View {
-    fn draw_empty_row() -> Result<(), Error> {
-        Terminal::print("~")?;
-        Ok(())
+    pub fn resize(&mut self, to: Size) {
+        self.size = to;
+        // might need to subscribe to resize events rather than juggling this manually
+        self.should_rerender = true;
     }
 
-    fn draw_welcome_message() -> Result<(), Error> {
-        let mut welcome_message = format!("{NAME} {VERSION}");
-        let terminal_width = Terminal::size()?.width;
+    fn render_line(at: usize, line_text: &str) {
+        let result = Terminal::print_row(at, line_text);
+        debug_assert!(result.is_ok(), "Failed to render line");
+    }
+
+    fn build_welcome_message(width: usize) -> String {
+        if width == 0 {
+            return " ".to_string();
+        }
+        let welcome_message = format!("{NAME} {VERSION}");
         let msg_length = welcome_message.len();
-        let pad_length = (terminal_width - msg_length) / 2;
 
-        let spaces_to_print = " ".repeat(pad_length - 1);
-        welcome_message = format!("~{spaces_to_print}{NAME} {VERSION}");
-        welcome_message.truncate(terminal_width);
+        if width <= msg_length {
+            return "~".to_string();
+        }
+        let pad_length = width.saturating_sub(msg_length).saturating_sub(1) / 2;
 
-        Terminal::print(welcome_message.as_str())?;
-        Ok(())
+        let mut full_message = format!("~{}{}", " ".repeat(pad_length.saturating_sub(1)), welcome_message);
+        full_message.truncate(width);
+        full_message
     }
 
-    pub fn render() -> Result<(), Error> {
-        let height = Terminal::size()?.height;
-        for row in 0..height {
-            Terminal::clear_line()?;
-            if row == 0 {
-                Terminal::print("~ Hello Atto")?;
-            } else if row == height / 3 {
-                Self::draw_welcome_message()?;
+    pub fn render(&mut self) {
+        if !self.should_rerender {
+            return;
+        }
+
+        let Size { height, width } = self.size;
+        if height == 0 || width == 0 {
+            return;
+        }
+
+        let vertical_center = height / 3;
+
+        for current_row in 0..height {
+            if let Some(line) = self.buffer.lines.get(current_row) {
+                // let truncated_line = line.get(0..width).unwrap_or(line);
+                let truncated_line = if line.len() >= width {
+                    &line[0..width]
+                } else {
+                    line
+                };
+                Self::render_line(current_row, truncated_line);
+            } else if current_row == vertical_center && self.buffer.is_empty() {
+                Self::render_line(current_row, &Self::build_welcome_message(width));
             } else {
-                Self::draw_empty_row()?;
-            }
-            if row + 1 < height {
-                Terminal::print("\r\n")?;
+                Self::render_line(current_row, "~");
             }
         }
-        Ok(())
+
+        self.should_rerender = false;
+    }
+
+    pub fn load(&mut self, path: &String) {
+        if let Ok(buffer) = Buffer::load(path) {
+            self.buffer = buffer;
+            self.should_rerender = true;
+        }
     }
 }

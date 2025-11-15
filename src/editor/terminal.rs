@@ -1,13 +1,14 @@
-use std::io::{Write, stdout};
-
 use crossterm::{
     Command,
     cursor::{Hide, MoveTo, Show},
     queue,
     style::Print,
-    terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode, size},
+    terminal::{
+        Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+        enable_raw_mode, size,
+    },
 };
-use std::io::Error;
+use std::io::{Error, Write, stdout};
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -15,7 +16,7 @@ pub struct Position {
     pub row: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Size {
     pub height: usize,
     pub width: usize,
@@ -30,12 +31,15 @@ pub struct Terminal {}
 impl Terminal {
     pub fn initialize() -> Result<(), Error> {
         enable_raw_mode()?;
+        Self::enter_alternate_screen()?;
         Self::clear_screen()?;
         Self::execute()?;
         Ok(())
     }
 
     pub fn terminate() -> Result<(), Error> {
+        Self::leave_alternate_screen()?;
+        Self::show_caret()?;
         Self::execute()?;
         disable_raw_mode()?;
         Ok(())
@@ -51,8 +55,25 @@ impl Terminal {
         Ok(())
     }
 
+    pub fn enter_alternate_screen() -> Result<(), Error> {
+        Self::queue_command(EnterAlternateScreen)?;
+        Ok(())
+    }
+
+    pub fn leave_alternate_screen() -> Result<(), Error> {
+        Self::queue_command(LeaveAlternateScreen)?;
+        Ok(())
+    }
+
     pub fn print(string: &str) -> Result<(), Error> {
         Self::queue_command(Print(string))?;
+        Ok(())
+    }
+
+    pub fn print_row(row: usize, line_text: &str) -> Result<(), Error> {
+        Self::move_caret_to(Position { col: 0, row })?;
+        Self::clear_line()?;
+        Self::print(line_text)?;
         Ok(())
     }
 
@@ -68,22 +89,20 @@ impl Terminal {
 
     /// Moves the caret to the given position
     pub fn move_caret_to(position: Position) -> Result<(), Error> {
-        queue!(
-            stdout(),
-            MoveTo(
-                // #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
-                position.col as u16,
-                position.row as u16
-            )
-        )?;
+        Self::queue_command(MoveTo(
+            // #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
+            position.col as u16,
+            position.row as u16,
+        ))?;
         Ok(())
     }
 
     pub fn size() -> Result<Size, Error> {
-        let (width, height) = size()?;
+        let (columns, rows) = size()?;
+        println!("{columns}cols {rows}rows");
         Ok(Size {
-            height: height as usize,
-            width: width as usize,
+            height: rows as usize,
+            width: columns as usize,
         })
     }
 
